@@ -2,6 +2,7 @@
 ###########################################################K8S一键自动安装#################################################################################################
 ###########################################################K8S 版本支持在v1.15.0 及以上版本################################################################################
 ###########################################################在部署中会重启服务器及更新系统需要在全新环境部署不然重启对业务有影响############################################
+###########################################支持操作系统centos7，centos8，Ubuntu维护版本非维护版本可能源有问题，openSUSE Leap 15.0及上版本##################################
 # 开启 下载代理 国内尽量配置
 Proxy() {
 # export http_proxy=http://127.0.0.1:7890/
@@ -53,6 +54,8 @@ export CLUSTER_KUBERNETES_SVC_IP="10.66.0.1"
 export CLUSTER_NAME=kubernetes
 #集群域名
 export CLUSTER_DNS_DOMAIN="cluster.local"
+# 集群 服务帐号令牌颁发者的标识符 1.20版本及以上用到
+export SERVICE_ACCOUNT_ISSUER="https://${CLUSTER_NAME}.default.svc.${CLUSTER_DNS_DOMAIN}"
 #集群DNS
 export CLUSTER_DNS_SVC_IP="10.66.0.2"
 # 证书相关配置
@@ -85,7 +88,7 @@ IPTABLES_INSTALL=OFF
 DYNAMICAUDITING=false
 # k8s 17号版本及以上的版本配置
 # 拓扑感知服务路由配置 false 关闭 true 开启
-SERVICETOPOLOGY=false
+SERVICETOPOLOGY=true
 # k8s 网络互联接口 ansible_eth0.ipv4.address 单网卡使用ansible_default_ipv4.address 多个网卡请指定使用的网卡名字
 KUBELET_IPV4=ansible_default_ipv4.address
 # ETCD 集群通讯网卡
@@ -100,16 +103,19 @@ LOGTOSTDERR=true
 ALSOLOGTOSTDERR=true
 # 设置输出日志级别
 LEVEL_LOG="2"
+# 启用特性 处于Alpha 或者Beta 阶段 https://kubernetes.io/zh/docs/reference/command-line-tools-reference/feature-gates/
+FEATURE_GATES_OPT="ServiceTopology=true,EndpointSlice=true,TTLAfterFinished=true"
+
 ########################################################################################################################################################################
 ######################################################### 负载均衡插件及镜像   尽量下载使用私有仓库镜像地址这样部署很快        #########################################                                
 ########################################################################################################################################################################
 ## kube-apiserver ha proxy 配置
 # nginx 启动进程数 auto 当前机器cpu 核心数的进程数
 CPU_NUM=4
-# 所用 镜像名字 可以自己构建  项目地址 https://github.com/qist/k8s/tree/master/dockerfile/k8s-ha-master 或者haproxy juestnow/haproxy-proxy:2.1.7
-HA_PROXY_IMAGE="juestnow/nginx-proxy:1.19.0"
+# 所用 镜像名字 可以自己构建  项目地址 https://github.com/qist/k8s/tree/master/dockerfile/k8s-ha-master 或者haproxy docker.io/juestnow/haproxy-proxy:2.3.3
+HA_PROXY_IMAGE="docker.io/juestnow/nginx-proxy:1.19.5"
 # pod-infra-container-image 地址
-POD_INFRA_CONTAINER_IMAGE="docker.io/juestnow/pause-amd64:3.2"
+POD_INFRA_CONTAINER_IMAGE="docker.io/juestnow/pause:3.4.1"
 #########################################################################################################################################################################
 #########################################################################################################################################################################
 #############################################                    一般参数修改                                    ########################################################
@@ -120,25 +126,25 @@ export HOST_PATH=`pwd`
 export DOWNLOAD_PATH=${HOST_PATH}/download
 # 设置版本号
 # ETCD 版本
-export ETCD_VERSION=v3.4.9
+export ETCD_VERSION=v3.4.14
 # kubernetes 版本
 export KUBERNETES_VERSION=v1.15.12
 # cni 版本
-export CNI_VERSION=v0.8.6
+export CNI_VERSION=v0.8.7
 # iptables
 export IPTABLES_VERSION=1.8.5
 # 数字证书签名工具
 export CFSSL_VERSION=1.4.1
 # docker 版本
-export DOCKER_VERSION=19.03.11
+export DOCKER_VERSION=19.03.14
 # containerd 版本
-export CONTAINERD_VERSION=1.3.4
+export CONTAINERD_VERSION=1.4.3
 # crictl 版本
-export CRICTL_VERSION=v1.18.0
+export CRICTL_VERSION=v1.19.0
 # runc 版本
-export RUNC_VERSION=v1.0.0-rc90
+export RUNC_VERSION=v1.0.0-rc92
 # cri-o 版本
-export CRIO_VERSION=v1.18.1
+export CRIO_VERSION=v1.19.0
 # 网络插件镜像选择 尽量下载使用私有仓库镜像地址这样部署很快
 # flannel 插件选择
 FLANNEL_VERSION="quay.io/coreos/flannel:v0.12.0-amd64"
@@ -172,6 +178,8 @@ K8S_PATH=$TOTAL_PATH/k8s
 POD_ROOT_DIR=$TOTAL_PATH/work
 # kubelet pod manifest path 
 POD_MANIFEST_PATH=${POD_ROOT_DIR}/kubernetes/manifests
+# kubelet pod runing 目录
+POD_RUNING_PATH=${POD_ROOT_DIR}/kubernetes/kubelet
 # docker 运行目录
 DOCKER_PATH=$TOTAL_PATH/docker
 # docker 二进制部署目录
@@ -225,6 +233,8 @@ ENDPOINTS="${ENDPOINTS} --etcd-servers-overrides=/events#https://${ETCD_EVENTS_M
 fi
 # kubernetes 相关配置
 # 公共配置
+# 配置tls 加密套件 etcd k8s 组件配置
+TLS_CIPHER="TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_RSA_WITH_AES_256_GCM_SHA384,TLS_RSA_WITH_AES_128_GCM_SHA256"
 # kube-apiserver 配置
 # K8S ETCD存储 目录名字
 ETCD_PREFIX="/registry" 
@@ -238,9 +248,9 @@ KUBE_API_KUBELET="https://${MASTER_IP}:${K8S_VIP_PORT}"
 # RUNTIME_CONFIG 设置
 RUNTIME_CONFIG="api/all=true"
 #开启插件enable-admission-plugins #AlwaysPullImages 启用istio 不能自动注入需要手动执行注入
-ENABLE_ADMISSION_PLUGINS="DefaultStorageClass,DefaultTolerationSeconds,LimitRanger,NamespaceExists,NamespaceLifecycle,NodeRestriction,PodNodeSelector,PersistentVolumeClaimResize,PodPreset,PodTolerationRestriction,ResourceQuota,ServiceAccount,StorageObjectInUseProtection,MutatingAdmissionWebhook,ValidatingAdmissionWebhook"
+ENABLE_ADMISSION_PLUGINS="DefaultStorageClass,DefaultTolerationSeconds,LimitRanger,NamespaceExists,NamespaceLifecycle,NodeRestriction,PodNodeSelector,PersistentVolumeClaimResize,PodTolerationRestriction,ResourceQuota,ServiceAccount,StorageObjectInUseProtection,MutatingAdmissionWebhook,ValidatingAdmissionWebhook"
 #禁用插件disable-admission-plugins 
-DISABLE_ADMISSION_PLUGINS="DenyEscalatingExec,ExtendedResourceToleration,ImagePolicyWebhook,LimitPodHardAntiAffinityTopology,NamespaceAutoProvision,Priority,EventRateLimit,PodSecurityPolicy"
+DISABLE_ADMISSION_PLUGINS="ExtendedResourceToleration,ImagePolicyWebhook,LimitPodHardAntiAffinityTopology,NamespaceAutoProvision,Priority,EventRateLimit,PodSecurityPolicy"
 # 设置api 副本数
 APISERVER_COUNT="3"
 # api 突变请求最大数
@@ -258,6 +268,12 @@ DEFAULT_UNREACHABLE_TOLERATION_SECONDS=30
 KUBE_API_QPS="100"
 #每秒发送到 apiserver 的请求数量上限 默认30
 KUBE_API_BURST="100"
+# 可以并发同步的 Service 对象个数。数值越大，服务管理的响应速度越快，不过对 CPU （和网络）的占用也越高。 默认1
+CONCURRENT_SERVICE_SYNCS=2
+# 可以并发同步的 Deployment 对象个数。数值越大意味着对 Deployment 的响应越及时，同时也意味着更大的 CPU（和网络带宽）压力。默认5
+CONCURRENT_DEPLOYMENT_SYNCS=10
+# 可以并发同步的垃圾收集工作线程个数。 默认20
+CONCURRENT_GC_SYNCS=30
 # 我们允许运行的节点在标记为不健康之前没有响应的时间。必须是kubelet的nodeStatusUpdateFrequency的N倍， 其中N表示允许kubelet发布节点状态的重试次数默认40s。
 NODE_MONITOR_GRACE_PERIOD=30s
 #在NodeController中同步节点状态的周期。默认5s
@@ -444,8 +460,8 @@ downloadK8S(){
       fi 
     if [ ${IPTABLES_INSTALL} == "ON" ]; then      
     # 下载iptables 
-       wget -c  --tries=40  https://www.netfilter.org/projects/iptables/files/iptables-${IPTABLES_VERSION}.tar.bz2 \
-                     -O $DOWNLOAD_PATH/iptables-${IPTABLES_VERSION}.tar.bz2
+       curl -C -  https://www.netfilter.org/projects/iptables/files/iptables-${IPTABLES_VERSION}.tar.bz2 \
+                     -o $DOWNLOAD_PATH/iptables-${IPTABLES_VERSION}.tar.bz2
       if [[ $? -ne 0 ]]; then
         colorEcho ${RED} "download  FATAL iptables."
         exit $?
@@ -477,7 +493,7 @@ downloadK8S(){
            exit $?
          fi      
     # 下载containerd
-          wget -c  --tries=40 https://github.com/containerd/containerd/releases/download/v${CONTAINERD_VERSION}/containerd-${CONTAINERD_VERSION}.linux-amd64.tar.gz \
+          wget -c  --tries=40 https://github.com/containerd/containerd/releases/download/v${CONTAINERD_VERSION}/containerd-${CONTAINERD_VERSION}-linux-amd64.tar.gz \
                     -O $DOWNLOAD_PATH/containerd-${CONTAINERD_VERSION}.linux-amd64.tar.gz
          if [[ $? -ne 0 ]]; then
            colorEcho ${RED} "download  FATAL containerd."
@@ -485,7 +501,7 @@ downloadK8S(){
          fi      
     elif [[ ${RUNTIME} == "CRIO" ]]; then
     # 下载crio
-          wget -c  --tries=40 https://github.com/cri-o/cri-o/releases/download/${CRIO_VERSION}/crio-${CRIO_VERSION}.tar.gz \
+          wget -c  --tries=40 https://storage.googleapis.com/k8s-conform-cri-o/artifacts/crio-${CRIO_VERSION}.tar.gz \
                     -O $DOWNLOAD_PATH/crio-${CRIO_VERSION}.tar.gz
          if [[ $? -ne 0 ]]; then
            colorEcho ${RED} "download  FATAL crio."
@@ -1551,6 +1567,7 @@ ETCD_OPTS="--name={{ ansible_hostname }} \\
            --peer-cert-file=${ETCD_PATH}/ssl/{{ ETCD_MEMBER }}-{{ ansible_hostname }}.pem \\
            --peer-key-file=${ETCD_PATH}/ssl/{{ ETCD_MEMBER }}-{{ ansible_hostname }}-key.pem \\
            --peer-client-cert-auth \\
+           --cipher-suites=${TLS_CIPHER} \\
            --enable-v2=true \\
            --peer-trusted-ca-file=${ETCD_PATH}/ssl/{{ ca }}.pem"
 EOF
@@ -1624,23 +1641,29 @@ KubeApiserverConfig(){
         mkdir -p ${HOST_PATH}/roles/kube-apiserver/files/ssl/{etcd,k8s}
         \cp -pdr ${DOWNLOAD_PATH}/kubernetes-server-linux-amd64-${KUBERNETES_VERSION}/kubernetes/server/bin/kube-apiserver ${HOST_PATH}/roles/kube-apiserver/files/bin/
         \cp -pdr ${HOST_PATH}/cfssl/pki/etcd/{etcd-client*.pem,etcd-ca.pem} ${HOST_PATH}/roles/kube-apiserver/files/ssl/etcd
-        \cp -pdr ${HOST_PATH}/cfssl/pki/k8s/{k8s-server*.pem,k8s-ca.pem,aggregator*.pem} ${HOST_PATH}/roles/kube-apiserver/files/ssl/k8s  
+        \cp -pdr ${HOST_PATH}/cfssl/pki/k8s/{k8s-server*.pem,k8s-ca*.pem,aggregator*.pem} ${HOST_PATH}/roles/kube-apiserver/files/ssl/k8s  
        fi
     else
       colorEcho ${RED} "kubernetes no download."
       exit 1
     fi  
-   if [[ "$DYNAMICAUDITING" == "true" ]] && [[ "$SERVICETOPOLOGY" == "false" ]]; then
+   if [[ "$DYNAMICAUDITING" == "true" ]] && [[ "$SERVICETOPOLOGY" == "false" ]] && [[ `expr ${KUBERNETES_VER} \< 1.19.0` -eq 1 ]]; then
       FEATURE_GATES="--feature-gates=DynamicAuditing=true"
       AUDIT_DYNAMIC_CONFIGURATION="--audit-dynamic-configuration"
-      elif [[ "$DYNAMICAUDITING" == "true" ]] && [[ "$SERVICETOPOLOGY" == "true" ]] && [[ `expr ${KUBERNETES_VER} \> 1.17.0` -eq 1 ]] ; then
-      FEATURE_GATES="--feature-gates=DynamicAuditing=true,ServiceTopology=true,EndpointSlice=true"
+      elif [[ "$DYNAMICAUDITING" == "true" ]] && [[ "$SERVICETOPOLOGY" == "true" ]] && [[ `expr ${KUBERNETES_VER} \>= 1.17.0` -eq 1 ]] && [[ `expr ${KUBERNETES_VER} \< 1.19.0` -eq 1 ]]; then
+      FEATURE_GATES="--feature-gates=DynamicAuditing=true,${FEATURE_GATES_OPT}"
       AUDIT_DYNAMIC_CONFIGURATION="--audit-dynamic-configuration"
-      elif [[ "$DYNAMICAUDITING" == "true" ]] && [[ "$SERVICETOPOLOGY" == "true" ]] && [[ `expr ${KUBERNETES_VER} \< 1.17.0` -eq 1 ]] ; then
+      elif [[ "$DYNAMICAUDITING" == "true" ]] && [[ "$SERVICETOPOLOGY" == "true" ]] && [[ `expr ${KUBERNETES_VER} \< 1.17.0` -eq 1 ]] && [[ `expr ${KUBERNETES_VER} \< 1.19.0` -eq 1 ]]; then
       FEATURE_GATES="--feature-gates=DynamicAuditing=true"
       AUDIT_DYNAMIC_CONFIGURATION="--audit-dynamic-configuration"
-      elif [[ "$DYNAMICAUDITING" == "false" ]] && [[ "$SERVICETOPOLOGY" == "true" ]] && [[ `expr ${KUBERNETES_VER} \> 1.17.0` -eq 1 ]] ; then
-      FEATURE_GATES="--feature-gates=ServiceTopology=true,EndpointSlice=true"
+      elif [[ "$DYNAMICAUDITING" == "false" ]] && [[ "$SERVICETOPOLOGY" == "true" ]] && [[ `expr ${KUBERNETES_VER} \>= 1.19.0` -eq 1 ]]; then
+      AUDIT_DYNAMIC_CONFIGURATION=""
+      FEATURE_GATES="--feature-gates=${FEATURE_GATES_OPT}"
+      elif  [[ "$DYNAMICAUDITING" == "true" ]] && [[ "$SERVICETOPOLOGY" == "false" ]] && [[ `expr ${KUBERNETES_VER} \>= 1.19.0` -eq 1 ]]; then
+      AUDIT_DYNAMIC_CONFIGURATION=""
+      elif  [[ "$DYNAMICAUDITING" == "true" ]] && [[ "$SERVICETOPOLOGY" == "true" ]] && [[ `expr ${KUBERNETES_VER} \>= 1.19.0` -eq 1 ]]; then
+      AUDIT_DYNAMIC_CONFIGURATION=""
+      FEATURE_GATES="--feature-gates=${FEATURE_GATES_OPT}"
       else
       FEATURE_GATES=""
    fi
@@ -1839,6 +1862,18 @@ AUDIT_POLICY_FILE="--audit-policy-file=${K8S_PATH}/config/audit-policy.yaml"
       else
 AUDIT_POLICY_FILE=""
       fi
+if [[ `expr ${KUBERNETES_VER} \>= 1.20.0` -eq 1 ]]; then
+ENABLE_ADMISSION_PLUGINS_OPT=${ENABLE_ADMISSION_PLUGINS}
+SERVICE_ACCOUNT_ISSUER_OPT="--service-account-issuer=${SERVICE_ACCOUNT_ISSUER}"
+SERVICE_ACCOUNT_SIGNING_KEY_FILE="--service-account-signing-key-file=${K8S_PATH}/ssl/k8s/k8s-ca-key.pem"
+else
+ENABLE_ADMISSION_PLUGINS_OPT=${ENABLE_ADMISSION_PLUGINS},PodPreset
+fi 
+if [[ `expr ${KUBERNETES_VER} \>= 1.21.0` -eq 1 ]]; then
+DISABLE_ADMISSION_PLUGINS_OPT=${DISABLE_ADMISSION_PLUGINS}
+else
+DISABLE_ADMISSION_PLUGINS_OPT=DenyEscalatingExec,${DISABLE_ADMISSION_PLUGINS}
+fi  
 # 创建 kube-apiserver 启动配置文件
 cat > ${HOST_PATH}/roles/kube-apiserver/templates/kube-apiserver << EOF
 KUBE_APISERVER_OPTS="--logtostderr=${LOGTOSTDERR} \\
@@ -1862,6 +1897,8 @@ KUBE_APISERVER_OPTS="--logtostderr=${LOGTOSTDERR} \\
         --requestheader-client-ca-file=${K8S_PATH}/ssl/k8s/k8s-ca.pem \\
         --proxy-client-cert-file=${K8S_PATH}/ssl/k8s/aggregator.pem \\
         --proxy-client-key-file=${K8S_PATH}/ssl/k8s/aggregator-key.pem \\
+        ${SERVICE_ACCOUNT_ISSUER_OPT} \\
+        ${SERVICE_ACCOUNT_SIGNING_KEY_FILE} \\
         --requestheader-allowed-names=aggregator \\
         --requestheader-group-headers=X-Remote-Group \\
         --requestheader-extra-headers-prefix=X-Remote-Extra- \\
@@ -1869,8 +1906,8 @@ KUBE_APISERVER_OPTS="--logtostderr=${LOGTOSTDERR} \\
         --enable-aggregator-routing=true \\
         --anonymous-auth=false \\
         --experimental-encryption-provider-config=${K8S_PATH}/config/encryption-config.yaml \\
-        --enable-admission-plugins=${ENABLE_ADMISSION_PLUGINS} \\
-        --disable-admission-plugins=${DISABLE_ADMISSION_PLUGINS} \\
+        --enable-admission-plugins=${ENABLE_ADMISSION_PLUGINS_OPT} \\
+        --disable-admission-plugins=${DISABLE_ADMISSION_PLUGINS_OPT} \\
         --cors-allowed-origins=.* \\
         --enable-swagger-ui \\
         --runtime-config=${RUNTIME_CONFIG} \\
@@ -1895,6 +1932,7 @@ KUBE_APISERVER_OPTS="--logtostderr=${LOGTOSTDERR} \\
         --alsologtostderr=${ALSOLOGTOSTDERR} \\
         --log-dir=${K8S_PATH}/log \\
         --v=${LEVEL_LOG} \\
+        --tls-cipher-suites=${TLS_CIPHER} \\
         --endpoint-reconciler-type=lease \\
         --max-mutating-requests-inflight=${MAX_MUTATING_REQUESTS_INFLIGHT} \\
         --max-requests-inflight=${MAX_REQUESTS_INFLIGHT} \\
@@ -2025,6 +2063,9 @@ metadata:
   labels:
     component: kube-apiserver-ha-proxy
     tier: control-plane
+  annotations:
+    prometheus.io/port: "8404"
+    prometheus.io/scrape: "true"    
   name: kube-apiserver-ha-proxy
   namespace: kube-system
 spec:
@@ -2137,6 +2178,27 @@ cat > ${HOST_PATH}/roles/package-sysctl/tasks/main.yml << EOF
       - ip_vs_sh
       - nf_conntrack
   when: ansible_os_family == 'Debian'
+- name: copy "{{ item }}"
+  template: 
+    src: '{{ item }}'
+    dest: /etc/modules-load.d/ 
+    owner: root 
+    group: root
+  with_items:
+      - k8s-debian-modules.conf
+      - k8s-ipvs-modules.conf
+  when: ansible_os_family == 'Suse'
+- name: Add the ipvs-modules module
+  modprobe: 
+    name: '{{ item }}'
+    state: present
+  with_items:
+      - ip_vs
+      - ip_vs_rr
+      - ip_vs_wrr
+      - ip_vs_sh
+      - nf_conntrack
+  when: ansible_os_family == 'Suse'  
 - name: Change various sysctl-settings, look at the sysctl-vars file for documentation
   sysctl:
     name: '{{ item.key }}'
@@ -2161,6 +2223,7 @@ cat > ${HOST_PATH}/roles/package-sysctl/tasks/main.yml << EOF
       - { key: 'net.core.wmem_max', value: '16777216' }
       - { key: 'net.core.somaxconn', value: '32768' }
       - { key: 'net.ipv4.ip_forward', value: '1' }
+      - { key: 'net.ipv4.tcp_timestamps', value: '0' }
       - { key: 'net.ipv4.tcp_max_syn_backlog', value: '8096' }
       - { key: 'net.bridge.bridge-nf-call-iptables', value: '1' }
       - { key: 'net.bridge.bridge-nf-call-ip6tables', value: '1' }
@@ -2180,11 +2243,11 @@ cat > ${HOST_PATH}/roles/package-sysctl/tasks/main.yml << EOF
       - { key: 'net.ipv6.conf.lo.disable_ipv6', value: '1' }
       - { key: 'net.ipv6.conf.all.disable_ipv6', value: '1' }
       - { key: 'net.ipv6.conf.default.disable_ipv6', value: '1' }
-      - { key: 'net.ipv6.conf.all.forwarding', value: '0' }
       - { key: 'net.ipv4.ip_local_port_range', value: '1024 65535' }
       - { key: 'net.ipv4.tcp_keepalive_time', value: '600' }
       - { key: 'net.ipv4.tcp_keepalive_probes', value: '10' }
       - { key: 'net.ipv4.tcp_keepalive_intvl', value: '30' }
+      - { key: 'net.ipv4.tcp_orphan_retries', value: '3' }
       - { key: 'net.nf_conntrack_max', value: '25000000' }
       - { key: 'net.netfilter.nf_conntrack_max', value: '25000000' }
       - { key: 'net.netfilter.nf_conntrack_tcp_timeout_established', value: '180' }
@@ -2229,6 +2292,16 @@ cat > ${HOST_PATH}/roles/package-sysctl/tasks/main.yml << EOF
     name: firewalld 
     state: stopped
   when: ansible_os_family == 'RedHat'
+- name: Enable service firewalld , and not touch the state
+  service:
+    name: firewalld 
+    enabled: no
+  when: ansible_os_family == 'Suse'
+- name: Stop service firewalld , if started
+  service:
+    name: firewalld 
+    state: stopped
+  when: ansible_os_family == 'Suse'  
 - name: Enable service ufw , and not touch the state
   service:
     name: ufw 
@@ -2435,10 +2508,102 @@ cat > ${HOST_PATH}/roles/package-sysctl/tasks/main.yml << EOF
       - software-properties-common
     state: latest
   when: ansible_pkg_mgr == "apt"
+- name: remove net.ipv4.ip_forward suse yast set forwarding
+  sysctl:
+    name: net.ipv4.ip_forward 
+    state: absent
+    sysctl_file: /etc/sysctl.d/70-yast.conf
+  ignore_errors: True  
+  when: ansible_os_family == 'Suse'    
+- name: remove swapfile
+  lineinfile: 
+    dest: /etc/fstab 
+    regexp: "swap" 
+    line: "#UUID"
+    state: absent
+  when: ansible_os_family == 'Suse' 
+
+- name: remvoe repository
+  zypper_repository:
+    name: openSUSE-Leap-{{ ansible_distribution_version }}-1
+    state: absent
+  ignore_errors: True
+  when: ansible_pkg_mgr == "zypper" 
+- name: add repository
+  zypper_repository:
+    name: '{{ item.value }}'
+    repo: '{{ item.key }}'
+    state: present
+  with_items:    
+      - { key: 'https://mirrors.ustc.edu.cn/opensuse/distribution/leap/{{ ansible_distribution_version }}/repo/oss/', value: 'USTC:{{ ansible_distribution_version }}:OSS' }
+      - { key: 'https://mirrors.ustc.edu.cn/opensuse/distribution/leap/{{ ansible_distribution_version }}/repo/non-oss/', value: 'USTC:{{ ansible_distribution_version }}:NON-OSS' }
+      - { key: 'https://mirrors.ustc.edu.cn/opensuse/update/leap/{{ ansible_distribution_version }}/oss/', value: 'USTC:{{ ansible_distribution_version }}:UPDATE-OSS' }
+      - { key: 'https://mirrors.ustc.edu.cn/opensuse/update/leap/{{ ansible_distribution_version }}/non-oss/', value: 'USTC:{{ ansible_distribution_version }}:UPDATE-NON-OSS ' }
+  ignore_errors: True
+  when: ansible_pkg_mgr == "zypper"
+- name: Refresh all repos 
+  zypper_repository:
+    repo: '*'
+    runrefresh: yes
+  ignore_errors: True
+  when: ansible_pkg_mgr == "zypper"    
+#- name: Only run
+#  zypper:
+#    name: '*'
+#    state: dist-upgrade
+#  ignore_errors: True  
+#  when: ansible_pkg_mgr == "zypper" 
+- name: Update all packages
+  zypper:
+    name: '*'
+    state: latest
+  register: suse_upack_source
+  environment:
+    ZYPP_LOCK_TIMEOUT: 3600
+  when: ansible_pkg_mgr == "zypper"
+- name: Suse zypper Install
+  zypper: 
+    name:
+      - ipvsadm
+      - telnet
+      - wget
+      - net-tools
+      - conntrackd
+      - ipset
+      - jq
+      - iptables
+      - curl
+      - sysstat
+      - libseccomp2
+      - socat
+      - nfs-utils
+      - fuse
+      - lvm2
+      - apparmor-parser 
+      - apparmor-parser-lang 
+      - catatonit  
+      - less 
+      - libbsd0 
+      - liblvm2cmd2_03 
+      - libnet9 
+      - libpcre2-8-0 
+      - libprotobuf-c1
+      - libsha1detectcoll1  
+      - perl-Error 
+      - rsync 
+      - vim
+      - tree
+      - iputils
+      - net-tools-deprecated
+      - device-mapper
+      - fuse-devel
+      - ceph-common
+    state: latest
+  when: ansible_pkg_mgr == "zypper"    
 - name: Reboot a slow machine that might have lots of updates to apply
   reboot:
     reboot_timeout: 3600
-  when: ubuntu_upack_source.changed or redhat_upack_source.changed
+  when: ubuntu_upack_source.changed or redhat_upack_source.changed or suse_upack_source.changed
 EOF
 cat > ${HOST_PATH}/package-sysctl.yml << EOF
 - hosts: all
@@ -2471,6 +2636,15 @@ runtimeConfig(){
             fi
       #docker 二进制安装playbook　
 cat > ${HOST_PATH}/roles/docker/tasks/main.yml << EOF
+- name: btrfs
+  shell: 'mount |grep \\${TOTAL_PATH}| grep btrfs'
+  ignore_errors: yes
+  register: btrfs_result
+
+- name: btrfs
+  shell: 'mount |grep \/| grep btrfs'
+  ignore_errors: yes
+  register: btr_result
 - name: create groupadd docker
   group: name=docker
 - name: Create ${DOCKER_BIN_PATH}
@@ -2551,8 +2725,12 @@ cat > ${HOST_PATH}/roles/docker/templates/daemon.json << EOF
     "oom-score-adjust": -1000,
     "live-restore": true,
     "exec-opts": ["native.cgroupdriver=cgroupfs"],
+    {% if  btrfs_result.rc == 0 or btr_result.rc == 0 %}
+     "storage-driver": "btrfs",
+     {% else %} 
     "storage-driver": "overlay2",
     "storage-opts":["overlay2.override_kernel_check=true"],
+    {% endif %}
     "debug": false,
     "registry-mirrors": [
         "https://docker.mirrors.ustc.edu.cn",
@@ -2717,7 +2895,11 @@ stream_server_port = "10010"
 sandbox_image = "${SANDBOX_IMAGE}"
 max_concurrent_downloads = ${MAX_CONCURRENT_DOWNLOADS}
   [plugins.cri.containerd]
+  {% if  btrfs_result.rc == 0 or btr_result.rc == 0 %}
+      snapshotter = "btrfs"
+  {% else %}
     snapshotter = "${SNAPSHOTTER}"
+  {% endif %}
     [plugins.cri.containerd.default_runtime]
       runtime_type = "io.containerd.runtime.v1.linux"
       runtime_engine = ""
@@ -2746,6 +2928,7 @@ Documentation=https://containerd.io
 After=network-online.target
 
 [Service]
+Type=notify
 ExecStartPre=-/sbin/modprobe br_netfilter
 ExecStartPre=-/sbin/modprobe overlay
 ExecStartPre=-/bin/mkdir -p ${RUN_CONTAINERD_SOCK}
@@ -2775,8 +2958,19 @@ cat > ${HOST_PATH}/roles/containerd/files/crictl.yaml << EOF
   image-endpoint: unix://${RUN_CONTAINERD_SOCK}/containerd.sock
   timeout: 10
   debug: false
+  pull-image-on-create: true
+  disable-pull-on-run: false
 EOF
 cat > ${HOST_PATH}/roles/containerd/tasks/main.yml << EOF
+- name: btrfs
+  shell: 'mount |grep \\${TOTAL_PATH}| grep btrfs'
+  ignore_errors: yes
+  register: btrfs_result
+
+- name: btrfs
+  shell: 'mount |grep \/| grep btrfs'
+  ignore_errors: yes
+  register: btr_result  
 - name: Create containerd
   file:
     path: "${CONTAINERD_PATH}/{{ item }}"
@@ -2859,7 +3053,7 @@ EOF
                      colorEcho ${GREEN} '文件夹已经存在'
              fi
              if [[ -e "$DOWNLOAD_PATH/crio-${CRIO_VERSION}.tar.gz" ]]; then
-                 if [[ ! -e "$DOWNLOAD_PATH/crio-${CRIO_VERSION}/bin/crio-static" ]] || [[ ! -e "${HOST_PATH}/roles/crio/files/bin/crio-static" ]]; then
+                 if [[ ! -e "$DOWNLOAD_PATH/crio-${CRIO_VERSION}/bin/crio" ]] || [[ ! -e "${HOST_PATH}/roles/crio/files/bin/crio" ]]; then
               # cp 二进制 文件到 ansible 目录
                  tar -xf $DOWNLOAD_PATH/crio-${CRIO_VERSION}.tar.gz -C ${DOWNLOAD_PATH}
                  \cp -pdr $DOWNLOAD_PATH/crio-${CRIO_VERSION}/bin ${HOST_PATH}/roles/crio/files/
@@ -2899,7 +3093,9 @@ runroot = "${RUNROOT}"
 # Storage driver used to manage the storage of images and containers. Please
 # refer to containers-storage.conf(5) to see all available storage drivers.
 #storage_driver = ""
-
+{% if  btrfs_result.rc == 0 or btr_result.rc == 0 %}
+driver = "btrfs"
+{% endif %}
 # List to pass options to the storage driver. Please refer to
 # containers-storage.conf(5) to see all available storage options.
 #storage_option = [
@@ -3023,15 +3219,18 @@ cgroup_manager = "cgroupfs"
 # only the capabilities defined in the containers json file by the user/kube
 # will be added.
 default_capabilities = [
-	"CHOWN",
-	"DAC_OVERRIDE",
-	"FSETID",
-	"FOWNER",
-	"SETGID",
-	"SETUID",
-	"SETPCAP",
-	"NET_BIND_SERVICE",
-	"KILL",
+    "CHOWN",
+    "DAC_OVERRIDE",
+    "NET_ADMIN",
+    "NET_RAW",
+    "SYS_CHROOT",
+    "FSETID",
+    "FOWNER",
+    "SETGID",
+    "SETUID",
+    "SETPCAP",
+    "NET_BIND_SERVICE",
+    "KILL",
 ]
 
 # List of default sysctls. If it is empty or commented out, only the sysctls
@@ -3263,15 +3462,19 @@ Description=OCI-based implementation of Kubernetes Container Runtime Interface
 Documentation=https://github.com/github.com/cri-o/cri-o
 
 [Service]
+Type=notify
+Environment=CONTAINER_CONMON_CGROUP=pod
 ExecStartPre=-/sbin/modprobe br_netfilter
 ExecStartPre=-/sbin/modprobe overlay
-ExecStart=${CRIO_PATH}/bin/crio-static --config ${CRIO_PATH}/etc/crio.conf --log-level info 
+ExecStart=${CRIO_PATH}/bin/crio --config ${CRIO_PATH}/etc/crio.conf --log-level info 
 Restart=on-failure
 RestartSec=5
 LimitNOFILE=${HARD_SOFT}
 LimitNPROC=${HARD_SOFT}
 LimitCORE=infinity
 LimitMEMLOCK=infinity
+TasksMax=infinity
+Delegate=yes
 KillMode=process
 [Install]
 WantedBy=multi-user.target
@@ -3323,10 +3526,24 @@ registries = []
 EOF
 # 生成 crictl crictl.yaml
 cat > ${HOST_PATH}/roles/crio/files/crictl.yaml << EOF
-runtime-endpoint: unix://${RUN_CRIO_SOCK}/crio.sock
+runtime-endpoint: "unix://${RUN_CRIO_SOCK}/crio.sock"
+image-endpoint: "unix://${RUN_CRIO_SOCK}/crio.sock"
+timeout: 10
+debug: false
+pull-image-on-create: true
+disable-pull-on-run: false
 EOF
 # 生成 cri-o ansible 部署文件
 cat > ${HOST_PATH}/roles/crio/tasks/main.yml  << EOF
+- name: btrfs
+  shell: 'mount |grep \\${TOTAL_PATH}| grep btrfs'
+  ignore_errors: yes
+  register: btrfs_result
+
+- name: btrfs
+  shell: 'mount |grep \/| grep btrfs'
+  ignore_errors: yes
+  register: btr_result
 - name: Create ${CRIO_PATH}
   file:
     path: "${CRIO_PATH}/{{ item }}"
@@ -3445,8 +3662,9 @@ kubeletConfig(){
       colorEcho ${RED} "kubernetes no download."
       exit 1
     fi
-      if [[ "$SERVICETOPOLOGY" == "true" ]]  && [[ `expr ${KUBERNETES_VER} \> 1.17.0` -eq 1 ]] ; then
-      FEATURE_GATES=`echo -e "featureGates:\n  EndpointSlice: true\n  ServiceTopology: true"`
+      if [[ "$SERVICETOPOLOGY" == "true" ]]  && [[ `expr ${KUBERNETES_VER} \>= 1.17.0` -eq 1 ]] ; then
+      #FEATURE_GATES=`echo -e "featureGates:\n  EndpointSlice: true\n  ServiceTopology: true"`
+      FEATURE_GATES="--feature-gates=${FEATURE_GATES_OPT}"
       else
       FEATURE_GATES="" 
    fi
@@ -3462,15 +3680,7 @@ httpCheckFrequency: 20s
 address: {{ ${KUBELET_IPV4} }}
 port: 10250
 readOnlyPort: 0
-tlsCipherSuites:
-- TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
-- TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
-- TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305
-- TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
-- TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305
-- TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
-- TLS_RSA_WITH_AES_256_GCM_SHA384
-- TLS_RSA_WITH_AES_128_GCM_SHA256
+tlsCipherSuites: [${TLS_CIPHER}]
 rotateCertificates: true
 authentication:
   x509:
@@ -3549,7 +3759,6 @@ enableControllerAttachDetach: true
 makeIPTablesUtilChains: true
 iptablesMasqueradeBit: 14
 iptablesDropBit: 15
-${FEATURE_GATES}
 failSwapOn: false
 containerLogMaxSize: 100Mi
 containerLogMaxFiles: 10
@@ -3586,7 +3795,7 @@ KUBELET_OPTS="--bootstrap-kubeconfig=${K8S_PATH}/conf/bootstrap.kubeconfig \\
               --hostname-override={{ ansible_hostname }} \\
               --cert-dir=${K8S_PATH}/ssl \\
               --runtime-cgroups=/systemd/system.slice \\
-              --root-dir=${POD_ROOT_DIR}/kubernetes/kubelet \\
+              --root-dir=${POD_RUNING_PATH} \\
               --log-dir=${K8S_PATH}/log \\
               --alsologtostderr=${ALSOLOGTOSTDERR} \\
               --config=${K8S_PATH}/conf/kubelet.yaml \\
@@ -3597,6 +3806,7 @@ KUBELET_OPTS="--bootstrap-kubeconfig=${K8S_PATH}/conf/bootstrap.kubeconfig \\
               --pod-infra-container-image=${POD_INFRA_CONTAINER_IMAGE} \\
               --image-pull-progress-deadline=${IMAGE_PULL_PROGRESS_DEADLINE} \\
               --v=${LEVEL_LOG} \\
+              ${FEATURE_GATES} \\
               --volume-plugin-dir=${K8S_PATH}/kubelet-plugins/volume"
 EOF
 # 生成 kubelet  配置文件
@@ -3612,8 +3822,8 @@ LimitNOFILE=${HARD_SOFT}
 LimitNPROC=${HARD_SOFT}
 LimitCORE=infinity
 LimitMEMLOCK=infinity
-EnvironmentFile=-/apps/k8s/conf/kubelet
-ExecStart=/apps/k8s/bin/kubelet \$KUBELET_OPTS
+EnvironmentFile=-${K8S_PATH}/conf/kubelet
+ExecStart=${K8S_PATH}/bin/kubelet \$KUBELET_OPTS
 Restart=on-failure
 KillMode=process
 [Install]
@@ -3621,6 +3831,15 @@ WantedBy=multi-user.target
 EOF
 # kubelet 二进制安装playbook
 cat > ${HOST_PATH}/roles/kubelet/tasks/main.yml << EOF
+- name: btrfs
+  shell: 'mount |grep \\${TOTAL_PATH}| grep btrfs'
+  ignore_errors: yes
+  register: btrfs_result
+
+- name: btrfs
+  shell: 'mount |grep \/| grep btrfs'
+  ignore_errors: yes
+  register: btr_result
 #disable swap
 - name: disable swap
   shell: "([ $(swapon -s | wc -l) -ge 1 ] && (swapoff -a && echo disable)) || echo already"
@@ -3640,8 +3859,20 @@ cat > ${HOST_PATH}/roles/kubelet/tasks/main.yml << EOF
       - conf
 - name: Create ${POD_MANIFEST_PATH}
   file:
-    path: "${POD_MANIFEST_PATH}"
+    path: "{{ item }}"
     state: directory
+  with_items:
+      - ${POD_RUNING_PATH}
+      - ${POD_MANIFEST_PATH}
+- name: mount kubelet 
+  lineinfile: 
+    dest: /etc/fstab
+    line: '${POD_RUNING_PATH} ${POD_RUNING_PATH} none defaults,bind,nofail 0 0'
+  when: btrfs_result.rc == 0 or btr_result.rc == 0      
+- name: mount kubelet 
+  shell: mount -a
+  ignore_errors: yes
+  when: btrfs_result.rc == 0 or btr_result.rc == 0    
 - name: copy kubelet to ${K8S_PATH}
   copy: 
     src: bin 
@@ -4044,18 +4275,19 @@ cat > ${HOST_PATH}/roles/iptables/tasks/main.yml << EOF
     src: iptables-${IPTABLES_VERSION}.tar.bz2
     dest: ${SOURCE_PATH}
   register: iptables_source_unpack
+  when: ansible_os_family != 'Suse'
 - name: configure to iptables
   shell: ./configure --disable-nftables
   args:
     chdir: "${SOURCE_PATH}/iptables-${IPTABLES_VERSION}"
-  when: iptables_source_unpack.changed
+  when: iptables_source_unpack.changed and ansible_os_family != 'Suse'
   register: iptables_configure
 - name: make install
   become: yes
   shell:  make -j$(nproc) &&  make install
   args:
     chdir: "${SOURCE_PATH}/iptables-${IPTABLES_VERSION}"
-  when: iptables_configure.changed   
+  when: iptables_configure.changed and ansible_os_family != 'Suse' 
 EOF
 cat > ${HOST_PATH}/iptables.yml << EOF
 - hosts: all
@@ -4103,16 +4335,21 @@ controllerConfig(){
       colorEcho ${RED} "kubernetes no download."
       exit 1
     fi
-      if [[ "$SERVICETOPOLOGY" == "true" ]]  && [[ `expr ${KUBERNETES_VER} \> 1.17.0` -eq 1 ]] ; then
-      FEATURE_GATES="--feature-gates=ServiceTopology=true,EndpointSlice=true"
+      if [[ "$SERVICETOPOLOGY" == "true" ]]  && [[ `expr ${KUBERNETES_VER} \>= 1.17.0` -eq 1 ]] ; then
+      FEATURE_GATES="--feature-gates=${FEATURE_GATES_OPT}"
       else
       FEATURE_GATES=""
    fi
 # 创建kube-controller-manager 启动配置文件
 cat > ${HOST_PATH}/roles/kube-controller-manager/templates/kube-controller-manager << EOF
 KUBE_CONTROLLER_MANAGER_OPTS="--logtostderr=${LOGTOSTDERR} \\
+--profiling \\
+--concurrent-service-syncs=${CONCURRENT_SERVICE_SYNCS} \\
+--concurrent-deployment-syncs=${CONCURRENT_DEPLOYMENT_SYNCS} \\
+--concurrent-gc-syncs=${CONCURRENT_GC_SYNCS} \\
 --leader-elect=true \\
---address=0.0.0.0 \\
+--bind-address={{ $KUBELET_IPV4 }} \\
+--address=127.0.0.1 \\
 --service-cluster-ip-range=${SERVICE_CIDR} \\
 --cluster-cidr=${CLUSTER_CIDR} \\
 --node-cidr-mask-size=24 \\
@@ -4124,6 +4361,11 @@ KUBE_CONTROLLER_MANAGER_OPTS="--logtostderr=${LOGTOSTDERR} \\
 --use-service-account-credentials=true \\
 --client-ca-file=${K8S_PATH}/ssl/k8s/k8s-ca.pem \\
 --requestheader-client-ca-file=${K8S_PATH}/ssl/k8s/k8s-ca.pem \\
+--requestheader-client-ca-file=${K8S_PATH}/ssl/k8s/k8s-ca.pem \\
+--requestheader-allowed-names=aggregator \\
+--requestheader-extra-headers-prefix=X-Remote-Extra- \\
+--requestheader-group-headers=X-Remote-Group \\
+--requestheader-username-headers=X-Remote-User \\
 --node-monitor-grace-period=${NODE_MONITOR_GRACE_PERIOD} \\
 --node-monitor-period=${NODE_MONITOR_PERIOD} \\
 --pod-eviction-timeout=${POD_EVICTION_TIMEOUT} \\
@@ -4146,6 +4388,7 @@ ${FEATURE_GATES} \\
 --tls-private-key-file=${K8S_PATH}/ssl/k8s/k8s-controller-manager-key.pem \\
 --kube-api-qps=${KUBE_API_QPS} \\
 --kube-api-burst=${KUBE_API_BURST} \\
+--tls-cipher-suites=${TLS_CIPHER} \\
 --log-dir=${K8S_PATH}/log \\
 --v=${LEVEL_LOG}"
 EOF
@@ -4258,26 +4501,32 @@ schedulerConfig(){
      if [[ -e "${DOWNLOAD_PATH}/kubernetes-server-linux-amd64-${KUBERNETES_VERSION}.tar.gz" ]]; then
         if [[ -e "${DOWNLOAD_PATH}/kubernetes-server-linux-amd64-${KUBERNETES_VERSION}/kubernetes/server/bin/kube-scheduler" ]]; then
          # cp 二进制文件及ssl及kubeconfig 文件到 ansible 目录 
-          mkdir -p ${HOST_PATH}/roles/kube-scheduler/files/bin
+          mkdir -p ${HOST_PATH}/roles/kube-scheduler/files/{ssl,bin}
+          mkdir -p ${HOST_PATH}/roles/kube-scheduler/files/ssl/k8s
            \cp -pdr ${DOWNLOAD_PATH}/kubernetes-server-linux-amd64-${KUBERNETES_VERSION}/kubernetes/server/bin/kube-scheduler ${HOST_PATH}/roles/kube-scheduler/files/bin/
            # 复制kube-scheduler.kubeconfig 文件
            \cp -pdr ${HOST_PATH}/kubeconfig/kube-scheduler.kubeconfig ${HOST_PATH}/roles/kube-scheduler/templates/
+            # 复制ssl
+            \cp -pdr ${HOST_PATH}/cfssl/pki/k8s/{k8s-scheduler*.pem,k8s-ca.pem} ${HOST_PATH}/roles/kube-scheduler/files/ssl/k8s
           elif [[ ! -e "${DOWNLOAD_PATH}/kubernetes-server-linux-amd64-${KUBERNETES_VERSION}/kubernetes/server/bin/kube-scheduler" ]] || [[ ! -e "${HOST_PATH}/roles/kube-scheduler/files/bin/kube-scheduler" ]]; then
              # cp 二进制文件及ssl 文件到 ansible 目录
               mkdir -p ${DOWNLOAD_PATH}/kubernetes-server-linux-amd64-${KUBERNETES_VERSION}
               tar -xf ${DOWNLOAD_PATH}/kubernetes-server-linux-amd64-${KUBERNETES_VERSION}.tar.gz -C ${DOWNLOAD_PATH}/kubernetes-server-linux-amd64-${KUBERNETES_VERSION}/
-              # cp 二进制文件及ssl及kubeconfig 文件到 ansible 目录 
-              mkdir -p ${HOST_PATH}/roles/kube-scheduler/files/bin
+               # cp 二进制文件及ssl及kubeconfig 文件到 ansible 目录 
+                mkdir -p ${HOST_PATH}/roles/kube-scheduler/files/{ssl,bin}
+                mkdir -p ${HOST_PATH}/roles/kube-scheduler/files/ssl/k8s
                \cp -pdr ${DOWNLOAD_PATH}/kubernetes-server-linux-amd64-${KUBERNETES_VERSION}/kubernetes/server/bin/kube-scheduler ${HOST_PATH}/roles/kube-scheduler/files/bin/
                  # 复制kube-scheduler.kubeconfig 文件
-               \cp -pdr ${HOST_PATH}/kubeconfig/kube-scheduler.kubeconfig ${HOST_PATH}/roles/kube-scheduler/templates/  
+               \cp -pdr ${HOST_PATH}/kubeconfig/kube-scheduler.kubeconfig ${HOST_PATH}/roles/kube-scheduler/templates/
+                # 复制ssl
+                \cp -pdr ${HOST_PATH}/cfssl/pki/k8s/{k8s-scheduler*.pem,k8s-ca.pem} ${HOST_PATH}/roles/kube-scheduler/files/ssl/k8s 
        fi
      else
       colorEcho ${RED} "kubernetes no download."
       exit 1
     fi
-      if [[ "$SERVICETOPOLOGY" == "true" ]]  && [[ `expr ${KUBERNETES_VER} \> 1.17.0` -eq 1 ]] ; then
-      FEATURE_GATES="--feature-gates=ServiceTopology=true,EndpointSlice=true"
+      if [[ "$SERVICETOPOLOGY" == "true" ]]  && [[ `expr ${KUBERNETES_VER} \>= 1.17.0` -eq 1 ]] ; then
+      FEATURE_GATES="--feature-gates=${FEATURE_GATES_OPT}"
       else
       FEATURE_GATES=""
    fi
@@ -4285,17 +4534,26 @@ schedulerConfig(){
 cat > ${HOST_PATH}/roles/kube-scheduler/templates/kube-scheduler << EOF
 KUBE_SCHEDULER_OPTS=" \\
                    --logtostderr=${LOGTOSTDERR} \\
-                   --address=0.0.0.0 \\
+                   --address=127.0.0.1 \\
+                   --bind-address={{ $KUBELET_IPV4 }} \\
                    --leader-elect=true \\
                    ${FEATURE_GATES} \\
                    --kubeconfig=${K8S_PATH}/config/kube-scheduler.kubeconfig \\
                    --authentication-kubeconfig=${K8S_PATH}/config/kube-scheduler.kubeconfig \\
                    --authorization-kubeconfig=${K8S_PATH}/config/kube-scheduler.kubeconfig \\
+                   --tls-cert-file=${K8S_PATH}/ssl/k8s/k8s-scheduler.pem \\
+                   --tls-private-key-file=${K8S_PATH}/ssl/k8s/k8s-scheduler-key.pem \\
+                   --client-ca-file=${K8S_PATH}/ssl/k8s/k8s-ca.pem \\
+                   --requestheader-allowed-names= \\
+                   --requestheader-extra-headers-prefix=X-Remote-Extra- \\
+                   --requestheader-group-headers=X-Remote-Group \\
+                   --requestheader-username-headers=X-Remote-User \\                   
                    --alsologtostderr=${ALSOLOGTOSTDERR} \\
                    --kube-api-qps=${KUBE_API_QPS} \\
                    --authentication-tolerate-lookup-failure=false \\
                    --kube-api-burst=${KUBE_API_BURST} \\
                    --log-dir=${K8S_PATH}/log \\
+                   --tls-cipher-suites=${TLS_CIPHER} \\
                    --v=${LEVEL_LOG}"
 EOF
 # 创建kube-scheduler 启动文件
@@ -4349,6 +4607,14 @@ cat > ${HOST_PATH}/roles/kube-scheduler/tasks/main.yml << EOF
     owner: k8s 
     group: root 
     mode: 0755
+- name: copy  ssl
+  copy: 
+    src: '{{ item }}'
+    dest: ${K8S_PATH}/ 
+    owner: k8s 
+    group: root
+  with_items:
+      - ssl
 - name: kube-scheduler conf
   template: 
     src: kube-scheduler 
@@ -4418,8 +4684,8 @@ kubeProxyConfig(){
       colorEcho ${RED} "kubernetes no download."
       exit 1
     fi
-      if [[ "$SERVICETOPOLOGY" == "true" ]]  && [[ `expr ${KUBERNETES_VER} \> 1.17.0` -eq 1 ]] ; then
-      FEATURE_GATES="--feature-gates=ServiceTopology=true,EndpointSlice=true"
+      if [[ "$SERVICETOPOLOGY" == "true" ]]  && [[ `expr ${KUBERNETES_VER} \>= 1.17.0` -eq 1 ]] ; then
+      FEATURE_GATES="--feature-gates=${FEATURE_GATES_OPT}"
       else
       FEATURE_GATES=""
    fi
@@ -4511,7 +4777,7 @@ netPlugConfig(){
 cat > ${HOST_PATH}/yaml/kube-flannel.yaml << EOF
 ---
 kind: ClusterRole
-apiVersion: rbac.authorization.k8s.io/v1beta1
+apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: flannel
 rules:
@@ -4536,7 +4802,7 @@ rules:
       - patch
 ---
 kind: ClusterRoleBinding
-apiVersion: rbac.authorization.k8s.io/v1beta1
+apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: flannel
 roleRef:
@@ -5578,8 +5844,7 @@ spec:
         - --enable-overlay=true 
         - --nodeport-bindon-all-ip=false 
         - --nodes-full-mesh=true 
-        - --enable-pod-egress=true 
-        - --cluster-cidr=${CLUSTER_CIDR}
+        - --enable-pod-egress=true
         - --v=${LEVEL_LOG}
         env:
         - name: NODE_NAME
@@ -5614,14 +5879,10 @@ spec:
         - /bin/sh
         - -c
         - set -e -x;
-          if [ ! -f /etc/cni/net.d/10-kuberouter.conflist ]; then
-            if [ -f /etc/cni/net.d/*.conf ]; then
-              rm -f /etc/cni/net.d/*.conf;
-            fi;
+            rm -f /etc/cni/net.d/*.conf;
             TMP=/etc/cni/net.d/.tmp-kuberouter-cfg;
             cp /etc/kube-router/cni-conf.json \${TMP};
             mv \${TMP} /etc/cni/net.d/10-kuberouter.conflist;
-          fi
         volumeMounts:
         - name: cni-conf-dir
           mountPath: /etc/cni/net.d
@@ -6729,6 +6990,13 @@ rules:
   - list
   - watch
 - apiGroups:
+  - discovery.k8s.io
+  resources:
+  - endpointslices
+  verbs:
+  - list
+  - watch
+- apiGroups:
   - ""
   resources:
   - nodes
@@ -6965,9 +7233,6 @@ checkK8SMaster(){
    return 0
 }
 selectEnv(){
-        if [ ${K8S_EVENTS} == ON ]; then
-        EVENTS_ETCD="##########  etcd EVENTS 部署 ansible-playbook -i ${ETCD_EVENTS_IPS}, ${PACKAGE_SYSCTL_FILE}  events-etcd.yml --ssh-common-args="-o StrictHostKeyChecking=no" ${ASK_PASS}"
-        fi
         if [ ${NET_PLUG} == "calico" ]; then
         NETPLUG=calico.yaml
         elif [ ${NET_PLUG} == "flannel" ]; then
@@ -6989,7 +7254,10 @@ selectEnv(){
         fi
         if [ ${PACKAGE_SYSCTL} == "ON" ]; then
             PACKAGE_SYSCTL_FILE=package-sysctl.yml
-        fi  
+        fi
+        if [ ${K8S_EVENTS} == ON ]; then
+        EVENTS_ETCD="##########  etcd EVENTS 部署 ansible-playbook -i ${ETCD_EVENTS_IPS}, ${PACKAGE_SYSCTL_FILE}  events-etcd.yml --ssh-common-args=\"-o StrictHostKeyChecking=no\" ${ASK_PASS}"
+        fi        
 }
 README.md(){
 #colorEcho ${BLUE} "开启选择使用插件"
