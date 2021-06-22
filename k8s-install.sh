@@ -1927,6 +1927,7 @@ KUBE_APISERVER_OPTS="--logtostderr=${LOGTOSTDERR} \\
         --audit-log-path=${K8S_PATH}/log/api-server-audit.log \\
         --profiling \\
         --kubelet-https \\
+        --http2-max-streams-per-connection=10000 \\
         --event-ttl=1h \\
         ${FEATURE_GATES} \\
         --enable-bootstrap-token-auth=true \\
@@ -3795,7 +3796,6 @@ evictionSoftGracePeriod:
   memory.available: 2m
   nodefs.available: 2m
 evictionPressureTransitionPeriod: ${EVICTION_PRESSURE_TRANSITION_PERIOD}
-podsPerCore: 0
 evictionMinimumReclaim:
   imagefs.available: ${EVICTIONHARD_MEMORY}
   memory.available: 0Mi
